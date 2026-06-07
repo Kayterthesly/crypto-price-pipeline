@@ -24,3 +24,10 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - Symbols: BTC-USD (1,825 rows, 100% coverage) | ETH-USD (1,826 rows)
 - Upsert pattern: multi-symbol safe, idempotent
 
+
+### Stage 2 — Feature Engineering
+**Date:** 2026-06-07 | **Commit:** 3ae7000 | **Status:** ✅ Complete
+- `feature_prices` table: 15 columns, both symbols preserved
+- Crypto-native: vol_30 uses sqrt(365) = 19.105 annualization
+- All rolling features lagged by 1 — zero leakage (1,775 rows verified)
+- NA defense: coalesce adjusted/close in ingestion + forward-fill in features
