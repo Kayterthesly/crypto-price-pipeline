@@ -12,6 +12,7 @@
 source(here::here("r_scripts", "00_utils.R"))
 
 library(dplyr)
+library(tidyr)
 library(TTR)
 library(logger)
 library(here)
@@ -60,6 +61,19 @@ generate_pipeline_features <- function(target_symbol) {
   }
   
   log_info("Raw data loaded | symbol={target_symbol} | rows={nrow(raw_df)}")
+  
+  # ── Defensive NA handling ────────────────────────────────────────────────────
+  # Yahoo Finance occasionally returns NA for adjusted on recent dates.
+  # TTR rolling functions reject mid-series NAs — forward-fill as safeguard.
+  n_adj_na <- sum(is.na(raw_df$adjusted))
+  if (n_adj_na > 0) {
+    log_warn("{n_adj_na} NA values in adjusted price — forward-filling")
+    raw_df <- raw_df |>
+      dplyr::arrange(date) |>
+      tidyr::fill(adjusted, .direction = "down")
+  } else {
+    log_info("No NA values in adjusted price — data is clean")
+  }
   
   # ── Step 1: Log return (no lag needed) ──────────────────────────────────────
   df_step1 <- raw_df |>

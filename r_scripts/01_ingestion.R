@@ -147,7 +147,9 @@ fetch_and_store_history <- function(symbol,
         high     = as.double(high),
         low      = as.double(low),
         close    = as.double(close),
-        adjusted = as.double(adjusted),
+        # Coalesce: if Yahoo returns NA for adjusted, use close as fallback
+        # Yahoo Finance sometimes omits adjusted for the most recent trading day
+        adjusted = dplyr::coalesce(as.double(adjusted), as.double(close)),
         volume   = as.double(volume)
       )
     
