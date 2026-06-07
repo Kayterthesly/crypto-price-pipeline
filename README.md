@@ -14,3 +14,13 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - `.Renviron`: ENV_MODE=synthetic, DB_PATH=data/crypto_prices.duckdb
 - Crypto-native constants: sqrt(365) annualization, ts_frequency=1
 - 9 directories scaffolded including tests/integration/
+
+### Stage 1 — Data Ingestion
+**Date:** 2026-06-07 | **Commit:** 0f3a07c | **Status:** ✅ Complete
+
+- DuckDB store: `data/crypto_prices.duckdb`
+- Table: `raw_prices` — PRIMARY KEY (symbol, date)
+- Crypto-native: no weekday filter, 365-day calendar
+- Symbols: BTC-USD (1,825 rows, 100% coverage) | ETH-USD (1,826 rows)
+- Upsert pattern: multi-symbol safe, idempotent
+
