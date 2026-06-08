@@ -54,3 +54,12 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - Tab 2: model metadata + formatted forecast table
 - Tab 3: crypto-native rationale (sqrt(365) explained)
 - Zero runtime bugs — all r-price-pipeline Stage 5 fixes pre-applied
+
+### Stage 6 — Testing, Docker, GitHub Actions CI
+**Date:** 2026-06-08 | **Status:** ✅ Complete
+- testthat unit tests: features (6 tests PASS) + modeling (11 assertions PASS)
+- data tests: 14 schema + integrity checks on production DuckDB
+- Test isolation: dedicated `data/test_crypto.duckdb`, withr cleanup, gc() between calls
+- Dockerfile: rocker/r-ver:4.5.0, HEALTHCHECK, no secrets in image
+- GitHub Actions CI: lint → test → data validate → Docker build
+- GitHub repo live: https://github.com/Kayterthesly/crypto-price-pipeline
