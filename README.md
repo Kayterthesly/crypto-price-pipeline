@@ -46,3 +46,11 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - `POST /predict/price` — full ARIMA forecast over HTTP
 - trace_id propagated: 6f3b2c3d-33e3-41ef-a3dd-9326de0168b6
 - Input validation + tryCatch error handling on all endpoints
+
+### Stage 5 — Dashboard
+**Date:** 2026-06-08 | **Commit:** 4176ad2 | **Status:** ✅ Complete
+- Shiny + Plotly, flatly theme, Inter font
+- Tab 1: historical price + CI cone + forecast line (all pre-fixes applied)
+- Tab 2: model metadata + formatted forecast table
+- Tab 3: crypto-native rationale (sqrt(365) explained)
+- Zero runtime bugs — all r-price-pipeline Stage 5 fixes pre-applied
