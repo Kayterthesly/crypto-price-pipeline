@@ -39,3 +39,10 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - UUID versioning: arima_BTCUSD_20260607_5ef82c4c
 - model_registry table initialized in DuckDB
 - Artifacts: .rds + .json saved to models/
+
+### Stage 4 — REST API (Plumber)
+**Date:** 2026-06-08 | **Commit:** 6c2fa55 | **Status:** ✅ Complete
+- `GET /health` — liveness check, returns env_mode + pipeline name
+- `POST /predict/price` — full ARIMA forecast over HTTP
+- trace_id propagated: 6f3b2c3d-33e3-41ef-a3dd-9326de0168b6
+- Input validation + tryCatch error handling on all endpoints
