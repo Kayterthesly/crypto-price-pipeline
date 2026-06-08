@@ -31,3 +31,11 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - Crypto-native: vol_30 uses sqrt(365) = 19.105 annualization
 - All rolling features lagged by 1 — zero leakage (1,775 rows verified)
 - NA defense: coalesce adjusted/close in ingestion + forward-fill in features
+
+### Stage 3 — Modeling & Forecasting
+**Date:** 2026-06-07 | **Commit:** f0a2def | **Status:** ✅ Complete
+- ARIMA on log returns, frequency=1 (no forced seasonality)
+- Train: 1,300 | Test: 325 | RMSE: 0.023268
+- UUID versioning: arima_BTCUSD_20260607_5ef82c4c
+- model_registry table initialized in DuckDB
+- Artifacts: .rds + .json saved to models/
