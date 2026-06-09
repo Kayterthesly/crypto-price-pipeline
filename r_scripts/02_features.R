@@ -206,6 +206,19 @@ check_leakage <- function(target_symbol) {
       name    = "rolling_max",
       compute = function(d) cummax(d$adjusted),
       stored  = "rolling_max"
+    ),
+    list(
+      name    = "vol_30",
+      compute = function(d) {
+        log_ret <- log(d$adjusted) - log(dplyr::lag(d$adjusted, 1))
+        TTR::runSD(log_ret, n = 30) * sqrt(CRYPTO_PERIODS_PER_YEAR)
+      },
+      stored  = "vol_30"
+    ),
+    list(
+      name    = "rsi_14",
+      compute = function(d) TTR::RSI(d$adjusted, n = 14),
+      stored  = "rsi_14"
     )
   )
   

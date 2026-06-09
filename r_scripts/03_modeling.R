@@ -281,3 +281,53 @@ print_forecast_summary <- function(forecast_result) {
   print(tail(df[, c("forecast_date","price_hat",
                     "price_lower","price_upper")], 5))
 }
+
+# -----------------------------------------------------------------------------
+# batch_forecast_all_symbols()
+# Loops over all symbols in raw_prices, runs compute_asset_forecasts() for each.
+# Skips symbols with insufficient data (< 250 rows after NA drop).
+# Logs a summary table at the end.
+# -----------------------------------------------------------------------------
+batch_forecast_all_symbols <- function(forecast_horizon = 30L) {
+  
+  con <- get_db_connection()
+  symbols <- DBI::dbGetQuery(con,
+                             "SELECT DISTINCT symbol FROM raw_prices ORDER BY symbol")$symbol
+  DBI::dbDisconnect(con, shutdown = TRUE); gc()
+  
+  log_info("Batch forecast starting | symbols={paste(symbols, collapse=', ')}")
+  
+  results <- list()
+  failed  <- character(0)
+  
+  for (sym in symbols) {
+    log_info("── Forecasting {sym} ──")
+    result <- tryCatch({
+      compute_asset_forecasts(sym, forecast_horizon = forecast_horizon)
+    }, error = function(e) {
+      log_warn("Skipping {sym}: {conditionMessage(e)}")
+      NULL
+    })
+    gc(); Sys.sleep(0.1)
+    
+    if (!is.null(result)) {
+      results[[sym]] <- result
+    } else {
+      failed <- c(failed, sym)
+    }
+  }
+  
+  # Summary table
+  cat("\n=== Batch Forecast Summary ===\n")
+  for (sym in names(results)) {
+    cat(sprintf("✅ %-15s RMSE: %.6f | Version: %s\n",
+                sym,
+                results[[sym]]$rmse_test,
+                results[[sym]]$model_version))
+  }
+  if (length(failed) > 0) {
+    cat("\nFailed:", paste(failed, collapse=", "), "\n")
+  }
+  
+  invisible(results)
+}
