@@ -15,5 +15,9 @@ cat("Port      : 8000\n")
 cat("Endpoints : GET  /health\n")
 cat("            POST /predict/price\n\n")
 
+# Railway sets PORT dynamically. Fall back to 8000 for local development.
+port <- as.integer(Sys.getenv("PORT", unset = "8000"))
+cat("Binding to port:", port, "\n")
+
 pr(here::here("api", "plumber.R")) |>
-  pr_run(host = "0.0.0.0", port = 8000)
+  pr_run(host = "0.0.0.0", port = port)

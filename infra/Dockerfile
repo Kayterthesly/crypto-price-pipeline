@@ -46,11 +46,12 @@ RUN mkdir -p data models notes
 ENV ENV_MODE=synthetic
 ENV DB_PATH=data/crypto_prices.duckdb
 ENV LOG_LEVEL=INFO
-
+# Railway uses dynamic PORT — expose hint only
 EXPOSE 8000
 
-# Health check: curl /health every 30s, 60s startup grace period
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+# Health check uses dynamic port
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+  CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-ENTRYPOINT ["R", "-e", "source('api/run_api.R')"]
+# CMD (not ENTRYPOINT) allows Railway to inject PORT at runtime
+CMD ["R", "--no-save", "-e", "source('api/run_api.R')"]
