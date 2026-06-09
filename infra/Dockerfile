@@ -1,5 +1,8 @@
 FROM rocker/r-ver:4.5.0
 
+# Increment CACHEBUST to force Railway to rebuild all layers from scratch
+ARG CACHEBUST=20260609v1
+
 # ── System libraries ──────────────────────────────────────────────────────────
 # Required by: duckdb (cmake/g++), sodium (libsodium), plotly/shiny/plumber
 # (libcurl/ssl/xml2), PKI/jose (libssl), tidyquant fonts (fontconfig/freetype)
