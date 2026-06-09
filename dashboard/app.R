@@ -18,6 +18,7 @@ library(DBI)
 library(duckdb)
 library(logger)
 library(here)
+library(httr)
 
 source(here::here("r_scripts", "03_modeling.R"))
 
@@ -119,10 +120,38 @@ server <- function(input, output, session) {
       incProgress(0.2, detail = "Loading feature data...")
       
       result <- tryCatch({
-        incProgress(0.3, detail = "Fitting ARIMA model...")
-        compute_asset_forecasts(
-          target_symbol    = sym,
-          forecast_horizon = as.integer(input$horizon)
+        incProgress(0.3, detail = "Calling forecast API...")
+        
+        api_url <- Sys.getenv("API_BASE_URL", unset = "http://127.0.0.1:8000")
+        api_key <- Sys.getenv("API_SECRET_KEY", unset = "")
+        
+        resp <- httr::POST(
+          paste0(api_url, "/predict/price"),
+          body    = jsonlite::toJSON(
+            list(symbol = sym, horizon = as.integer(input$horizon)),
+            auto_unbox = TRUE
+          ),
+          httr::content_type_json(),
+          httr::add_headers("X-API-Key" = api_key)
+        )
+        
+        if (httr::status_code(resp) != 200) {
+          err_body <- jsonlite::fromJSON(
+            httr::content(resp, "text", encoding = "UTF-8"))
+          stop(err_body$error %||% "API call failed")
+        }
+        
+        raw <- jsonlite::fromJSON(
+          httr::content(resp, "text", encoding = "UTF-8"),
+          simplifyDataFrame = TRUE
+        )
+        
+        # Convert to same structure as direct compute_asset_forecasts()
+        list(
+          forecast_df   = as.data.frame(raw$forecast),
+          model_meta    = raw$model_meta,
+          model_version = raw$model_meta$model_version,
+          rmse_test     = raw$model_meta$rmse_test
         )
       }, error = function(e) {
         error_message(paste("Error:", conditionMessage(e)))
