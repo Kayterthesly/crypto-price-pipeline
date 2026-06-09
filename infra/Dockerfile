@@ -1,57 +1,54 @@
-# =============================================================================
-# infra/Dockerfile
-# Pipeline: crypto-price-pipeline
-# Stage: 6 — Containerized Plumber API
-# Build: docker build -f infra/Dockerfile -t crypto-price-pipeline .
-# Run:   docker run -p 8000:8000 \
-#          -e ENV_MODE=live_yahoo \
-#          -v $(pwd)/data:/app/data \
-#          crypto-price-pipeline
-# =============================================================================
-
 FROM rocker/r-ver:4.5.0
 
+# ── System libraries ──────────────────────────────────────────────────────────
+# Required by: duckdb (cmake/g++), sodium (libsodium), plotly/shiny/plumber
+# (libcurl/ssl/xml2), PKI/jose (libssl), tidyquant fonts (fontconfig/freetype)
 RUN apt-get update && apt-get install -y \
-    libssl-dev \
     libcurl4-openssl-dev \
+    libssl-dev \
     libxml2-dev \
+    libsodium-dev \
     libfontconfig1-dev \
+    libfreetype6-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libjpeg-dev \
+    libgit2-dev \
+    cmake \
+    g++ \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy renv files first — Docker cache layer:
-# packages only reinstall if renv.lock changes
-COPY renv.lock       renv.lock
-COPY renv/activate.R renv/activate.R
-COPY renv/settings.json renv/settings.json
-COPY renv/.gitignore renv/.gitignore
-COPY .Rprofile       .Rprofile
+# ── Posit Package Manager — pre-compiled Linux binaries (Ubuntu 24.04 Noble) ──
+# This eliminates all from-source compilation. duckdb, shiny, plotly etc.
+# are downloaded as ready-to-use binaries instead of compiled from C++.
+ENV RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/noble/latest"
 
-# Install renv and restore packages
-RUN R -e "install.packages('renv', repos='https://cloud.r-project.org')"
+# ── renv bootstrap ────────────────────────────────────────────────────────────
+COPY renv.lock renv.lock
+COPY renv/activate.R renv/activate.R
+COPY renv/.gitignore renv/.gitignore
+COPY renv/settings.json renv/settings.json
+COPY .Rprofile .Rprofile
+
+RUN R -e "install.packages('renv', repos='https://packagemanager.posit.co/cran/__linux__/noble/latest')"
 RUN R -e "renv::restore(clean = TRUE, prompt = FALSE)"
 
-# Copy application code (after package install for better cache utilization)
+# ── Application code ──────────────────────────────────────────────────────────
 COPY r_scripts/ r_scripts/
-COPY api/        api/
+COPY api/ api/
+COPY dashboard/ dashboard/
 
-# Create runtime directories
 RUN mkdir -p data models notes
 
-# Environment variables — override at runtime:
-#   docker run -e ENV_MODE=live_yahoo ...
-#   NEVER put actual credentials here — use -e or secrets manager
-ENV ENV_MODE=synthetic
-ENV DB_PATH=data/crypto_prices.duckdb
-ENV LOG_LEVEL=INFO
-# Railway uses dynamic PORT — expose hint only
+# ── Runtime ───────────────────────────────────────────────────────────────────
 EXPOSE 8000
 
-# Health check uses dynamic port
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
   CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# CMD (not ENTRYPOINT) allows Railway to inject PORT at runtime
 CMD ["R", "--no-save", "-e", "source('api/run_api.R')"]
