@@ -41,10 +41,9 @@ COPY .Rprofile .Rprofile
 RUN R -e "install.packages('renv', repos='https://packagemanager.posit.co/cran/__linux__/noble/latest')"
 RUN R -e "renv::restore(clean = TRUE, prompt = FALSE)"
 
-# ── Application code ──────────────────────────────────────────────────────────
+# ── Application code (API only — dashboard deployed separately on shinyapps.io) ──
 COPY r_scripts/ r_scripts/
 COPY api/ api/
-COPY dashboard/ dashboard/
 
 RUN mkdir -p data models notes
 
