@@ -63,3 +63,32 @@ Production-Grade Crypto Price Analysis and Forecasting Pipeline
 - Dockerfile: rocker/r-ver:4.5.0, HEALTHCHECK, no secrets in image
 - GitHub Actions CI: lint → test → data validate → Docker build
 - GitHub repo live: https://github.com/Kayterthesly/crypto-price-pipeline
+
+### Stage 7A — Pipeline Completion
+**Date:** 2026-06-09 | **Commit:** 01f6e47 | **Status:** ✅ Complete
+- ETH-USD added to model_registry: ARIMA, RMSE=0.035621
+- `batch_forecast_all_symbols()` — loops all symbols automatically
+- `check_leakage()` expanded: now validates all 5 features (sma_50, sma_200, rolling_max, vol_30, rsi_14)
+- Integration test: full chain verified (ingest → features → forecast → registry)
+
+### Stage 7B — API Security
+**Date:** 2026-06-09 | **Commit:** b5a5a76 | **Status:** ✅ Complete
+- API key authentication: `X-API-Key` header required on all forecast endpoints
+- Rate limiting: 10 requests per 60 seconds per client IP
+- CORS headers: browser clients (shinyapps.io) can call the Railway API
+- Dashboard wired to Railway API via `API_BASE_URL` env var with direct-call fallback
+
+### Stage 7C — Automation & Drift Detection
+**Date:** 2026-06-09 | **Commit:** f51c674 | **Status:** ✅ Complete
+- GitHub Actions cron: daily at 02:00 UTC fetches live Yahoo Finance prices
+- Automated retraining for all symbols on new data
+- Drift detection: flags if new RMSE > 1.25x best historical RMSE or > 5% absolute threshold
+- Refresh report saved to `notes/refresh_YYYY-MM-DD.json`
+
+### Stage 7D — Showcase & Deployment
+**Date:** 2026-06-10 | **Status:** ✅ Complete
+- Live Dashboard: https://e9yw5n-kayterthesly.shinyapps.io/crypto-price-pipeline/
+- Live API: https://crypto-price-pipeline-production.up.railway.app/health
+- API: secured (X-API-Key), rate-limited, CORS-enabled, auto_unbox JSON
+- LICENSE (MIT) + CONTRIBUTING.md added
+- GitHub Secret `API_SECRET_KEY` configured for CI/CD

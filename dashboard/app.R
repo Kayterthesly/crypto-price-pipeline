@@ -20,7 +20,17 @@ library(logger)
 library(here)
 library(httr)
 
-source(here::here("r_scripts", "03_modeling.R"))
+# Source local scripts if available (development only)
+# On shinyapps.io these files are not bundled — Railway API handles all computation
+tryCatch({
+  source(here::here("r_scripts", "00_workspace_init.R"))
+  source(here::here("r_scripts", "01_ingestion.R"))
+  source(here::here("r_scripts", "02_features.R"))
+  source(here::here("r_scripts", "03_modeling.R"))
+  message("Local R scripts loaded — development mode active")
+}, error = function(e) {
+  message("Local scripts not available — API-only mode (shinyapps.io)")
+})
 
 # =============================================================================
 # UI
@@ -122,37 +132,48 @@ server <- function(input, output, session) {
       result <- tryCatch({
         incProgress(0.3, detail = "Calling forecast API...")
         
-        api_url <- Sys.getenv("API_BASE_URL", unset = "http://127.0.0.1:8000")
+        api_url <- Sys.getenv("API_BASE_URL", unset = "")
         api_key <- Sys.getenv("API_SECRET_KEY", unset = "")
         
-        resp <- httr::POST(
-          paste0(api_url, "/predict/price"),
-          body    = jsonlite::toJSON(
-            list(symbol = sym, horizon = as.integer(input$horizon)),
-            auto_unbox = TRUE
-          ),
-          httr::content_type_json(),
-          httr::add_headers("X-API-Key" = api_key)
-        )
-        
-        if (httr::status_code(resp) != 200) {
-          err_body <- jsonlite::fromJSON(
-            httr::content(resp, "text", encoding = "UTF-8"))
-          stop(err_body$error %||% "API call failed")
+        if (nchar(api_url) == 0) {
+          # Fallback: call functions directly (local/development mode)
+          incProgress(0.1, detail = "Fitting ARIMA model locally...")
+          compute_asset_forecasts(
+            target_symbol    = sym,
+            forecast_horizon = as.integer(input$horizon)
+          )
+        } else {
+          # Production: call Railway API
+          resp <- httr::POST(
+            paste0(api_url, "/predict/price"),
+            body    = jsonlite::toJSON(
+              list(symbol = sym, horizon = as.integer(input$horizon)),
+              auto_unbox = TRUE
+            ),
+            httr::content_type_json(),
+            httr::add_headers("X-API-Key" = api_key)
+          )
+          
+          if (httr::status_code(resp) != 200) {
+            err_body <- tryCatch(
+              jsonlite::fromJSON(httr::content(resp, "text", encoding="UTF-8")),
+              error = function(e) list(error = paste("HTTP", httr::status_code(resp)))
+            )
+            stop(err_body$error %||% paste("API returned", httr::status_code(resp)))
+          }
+          
+          raw <- jsonlite::fromJSON(
+            httr::content(resp, "text", encoding = "UTF-8"),
+            simplifyDataFrame = TRUE
+          )
+          
+          list(
+            forecast_df   = as.data.frame(raw$forecast),
+            model_meta    = raw$model_meta,
+            model_version = raw$model_meta$model_version,
+            rmse_test     = raw$model_meta$rmse_test
+          )
         }
-        
-        raw <- jsonlite::fromJSON(
-          httr::content(resp, "text", encoding = "UTF-8"),
-          simplifyDataFrame = TRUE
-        )
-        
-        # Convert to same structure as direct compute_asset_forecasts()
-        list(
-          forecast_df   = as.data.frame(raw$forecast),
-          model_meta    = raw$model_meta,
-          model_version = raw$model_meta$model_version,
-          rmse_test     = raw$model_meta$rmse_test
-        )
       }, error = function(e) {
         error_message(paste("Error:", conditionMessage(e)))
         NULL

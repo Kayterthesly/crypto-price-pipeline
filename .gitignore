@@ -18,3 +18,5 @@ renv/sandbox/
 # R artifacts
 .Rhistory
 .RData
+
+dashboard/.Renviron
