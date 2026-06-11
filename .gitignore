@@ -20,3 +20,4 @@ renv/sandbox/
 .RData
 
 dashboard/.Renviron
+dashboard/rsconnect/
