@@ -117,6 +117,56 @@ function() {
   )
 }
 
+# -----------------------------------------------------------------------------
+# GET /prices/history
+# Returns the last N days of historical prices for a symbol from DuckDB.
+# Called by the shinyapps.io dashboard — it has no local DuckDB.
+# Auth: X-API-Key required (handled by authenticate filter)
+# -----------------------------------------------------------------------------
+#* Get historical price data
+#* @tag data
+#* @get /prices/history
+function(symbol = "BTC-USD", days = "180") {
+  
+  days_int <- as.integer(days)
+  if (is.na(days_int) || days_int < 1 || days_int > 1825) {
+    days_int <- 180L
+  }
+  
+  result <- tryCatch({
+    con <- get_db_connection()
+    on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+    
+    cutoff <- as.character(Sys.Date() - days_int)
+    prices <- DBI::dbGetQuery(con, sprintf(
+      "SELECT symbol, date, adjusted, open, high, low, close, volume
+       FROM raw_prices
+       WHERE symbol = '%s' AND date >= '%s'
+       ORDER BY date",
+      symbol, cutoff
+    ))
+    prices
+  }, error = function(e) {
+    log_error("History fetch failed | symbol={symbol} | {conditionMessage(e)}")
+    NULL
+  })
+  
+  if (is.null(result) || nrow(result) == 0) {
+    list(
+      symbol  = symbol,
+      history = list(),
+      rows    = 0L,
+      message = "No data found — data may still be seeding"
+    )
+  } else {
+    list(
+      symbol  = symbol,
+      history = result,
+      rows    = nrow(result)
+    )
+  }
+}
+
 # ── POST /predict/price ───────────────────────────────────────────────────────
 #* Generate crypto price forecast (requires X-API-Key header)
 #* @tag forecast

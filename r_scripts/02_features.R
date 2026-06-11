@@ -12,6 +12,7 @@
 source(here::here("r_scripts", "00_utils.R"))
 
 library(dplyr)
+library(dbplyr)   # explicit load — required for tbl() on DBI connections in Docker
 library(tidyr)
 library(TTR)
 library(logger)

@@ -193,19 +193,40 @@ server <- function(input, output, session) {
     cutoff_date  <- Sys.Date() - history_days
     
     # Load historical prices
-    con <- tryCatch(get_db_connection(), error = function(e) NULL)
-    if (is.null(con)) {
-      return(plot_ly() |>
-               layout(title = "Cannot connect to database — run the pipeline first"))
-    }
-    on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+    sym          <- trimws(input$symbol)
+    history_days <- input$history_days
+    api_url      <- Sys.getenv("API_BASE_URL", unset = "")
+    api_key      <- Sys.getenv("API_SECRET_KEY", unset = "")
     
+    # Try local DuckDB first (development), fall back to API (shinyapps.io)
     historical <- tryCatch({
+      con <- get_db_connection()
+      on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+      cutoff_date <- Sys.Date() - history_days
       tbl(con, "raw_prices") |>
         dplyr::filter(symbol == !!sym, date >= !!cutoff_date) |>
         dplyr::arrange(date) |>
         dplyr::collect()
-    }, error = function(e) NULL)
+    }, error = function(e) {
+      # Local DB unavailable — fetch from Railway API
+      if (nchar(api_url) == 0) return(NULL)
+      tryCatch({
+        resp <- httr::GET(
+          paste0(api_url, "/prices/history"),
+          query = list(symbol = sym, days = history_days),
+          httr::add_headers("X-API-Key" = api_key)
+        )
+        if (httr::status_code(resp) != 200) return(NULL)
+        raw <- jsonlite::fromJSON(
+          httr::content(resp, "text", encoding = "UTF-8"),
+          simplifyDataFrame = TRUE
+        )
+        if (is.null(raw$history) || length(raw$history) == 0) return(NULL)
+        df <- as.data.frame(raw$history)
+        df$date <- as.Date(df$date)
+        df
+      }, error = function(e2) NULL)
+    })
     
     fig <- plot_ly()
     

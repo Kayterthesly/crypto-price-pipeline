@@ -1,6 +1,7 @@
 library(here)
 library(DBI)
 library(duckdb)
+library(dbplyr)   # explicit load — required by generate_pipeline_features() in Docker
 library(plumber)
 
 cat("=== Starting crypto-price-pipeline API ===\n")
@@ -55,4 +56,5 @@ port <- as.integer(Sys.getenv("PORT", unset = "8000"))
 cat("Binding to port:", port, "\n")
 
 pr(here::here("api", "plumber.R")) |>
+  pr_set_serializer(plumber::serializer_json(auto_unbox = TRUE)) |>
   pr_run(host = "0.0.0.0", port = port)
