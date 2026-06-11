@@ -38,7 +38,8 @@ COPY renv/.gitignore renv/.gitignore
 COPY renv/settings.json renv/settings.json
 COPY .Rprofile .Rprofile
 
-RUN R -e "install.packages('renv', repos='https://packagemanager.posit.co/cran/__linux__/noble/latest')"
+# Cache bust 2026-06-11 — forces fresh renv::restore()
+RUN R -e "install.packages('renv', repos='https://cloud.r-project.org')"
 RUN R -e "renv::restore(clean = TRUE, prompt = FALSE)"
 
 # ── Application code (API only — dashboard deployed separately on shinyapps.io) ──

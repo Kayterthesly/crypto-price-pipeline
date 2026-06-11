@@ -79,10 +79,12 @@ compute_asset_forecasts <- function(target_symbol,
   ensure_model_registry_table(con)
   
   # ── Load features, drop NA warm-up rows ─────────────────────────────────────
-  df_raw <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == !!target_symbol) |>
-    dplyr::arrange(date) |>
-    dplyr::collect()
+  # Direct SQL — no dbplyr dependency, works in Docker without library(dbplyr)
+  df_raw <- DBI::dbGetQuery(con, sprintf(
+    "SELECT * FROM feature_prices WHERE symbol = '%s' ORDER BY date",
+    target_symbol
+  ))
+  df_raw$date <- as.Date(df_raw$date)
   
   if (nrow(df_raw) == 0) {
     stop("[MODEL ABORT] No feature data for '", target_symbol,

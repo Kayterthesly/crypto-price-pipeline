@@ -12,7 +12,6 @@
 source(here::here("r_scripts", "00_utils.R"))
 
 library(dplyr)
-library(dbplyr)   # explicit load — required for tbl() on DBI connections in Docker
 library(tidyr)
 library(TTR)
 library(logger)
@@ -51,10 +50,12 @@ generate_pipeline_features <- function(target_symbol) {
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
   
   # ── Load raw prices ──────────────────────────────────────────────────────────
-  raw_df <- tbl(con, "raw_prices") |>
-    dplyr::filter(symbol == !!target_symbol) |>
-    dplyr::arrange(date) |>
-    dplyr::collect()
+  # Direct SQL — no dbplyr dependency, works in Docker without library(dbplyr)
+  raw_df <- DBI::dbGetQuery(con, sprintf(
+    "SELECT * FROM raw_prices WHERE symbol = '%s' ORDER BY date",
+    target_symbol
+  ))
+  raw_df$date <- as.Date(raw_df$date)
   
   if (nrow(raw_df) == 0) {
     stop("[FEATURES ABORT] No data for '", target_symbol,

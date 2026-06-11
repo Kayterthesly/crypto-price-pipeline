@@ -1,7 +1,6 @@
 library(here)
 library(DBI)
 library(duckdb)
-library(dbplyr)   # explicit load — required by generate_pipeline_features() in Docker
 library(plumber)
 
 cat("=== Starting crypto-price-pipeline API ===\n")
