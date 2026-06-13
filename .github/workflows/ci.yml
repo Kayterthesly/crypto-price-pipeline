@@ -89,7 +89,9 @@ jobs:
           fetch_and_store_history("ETH-USD", years_back = 3)
           generate_pipeline_features("BTC-USD")
           generate_pipeline_features("ETH-USD")
-          cat("Synthetic seed complete\n")
+          compute_asset_forecasts("BTC-USD", forecast_horizon = 30)
+          compute_asset_forecasts("ETH-USD", forecast_horizon = 30)
+          cat("Synthetic seed complete — raw, features, model_registry populated\n")
 
       - name: Run data tests
         run: Rscript tests/data_tests.R
