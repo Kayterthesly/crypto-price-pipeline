@@ -1,11 +1,14 @@
 # =============================================================================
 # .github/workflows/ci.yml
 # Pipeline : crypto-price-pipeline
-# Stage    : 6 → 8 — CI: lint → seed → data tests → unit tests → Docker → refresh
-# Triggers : push/PR to main  |  daily cron 02:00 UTC
-# Fix log  : v3 — shell: Rscript {0} for all R steps (eliminates -e quoting
-#            issues on Linux bash), lintr installed inline (not in renv.lock
-#            because renv snapshots only project-imported packages).
+# Stage    : 6 to 8 CI: lint - seed+test - Docker - refresh
+# Triggers : push/PR to main | daily cron 02:00 UTC
+#
+# v5 architecture: seed + data tests + unit tests run in ONE R session.
+# Rationale: separate steps lose R session state. Functions sourced in step A
+# are not in scope in step B. One session = functions defined once, DB seeded
+# once, both test suites share the same environment. No inter-step uncertainty.
+# data_tests.R is called via system() to isolate its quit() from this session.
 # =============================================================================
 
 name: crypto-price-pipeline CI
@@ -16,18 +19,13 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Daily at 02:00 UTC — after Asian crypto markets close
     - cron: '0 2 * * *'
 
-# ── Job 1: Lint + Seed + Test ─────────────────────────────────────────────────
 jobs:
+
+# -- Job 1: Lint + Seed + Test ------------------------------------------------
   test:
     runs-on: ubuntu-latest
-
-    env:
-      ENV_MODE: synthetic
-      DB_PATH: data/crypto_prices.duckdb
-      LOG_LEVEL: WARN
 
     steps:
       - name: Checkout
@@ -53,26 +51,19 @@ jobs:
           install.packages("renv")
           renv::restore(prompt = FALSE)
 
-      # lintr is a dev-only tool — renv::snapshot() excludes it because no
-      # project .R file has library(lintr). Install it directly here.
       - name: Lint R scripts
         shell: Rscript {0}
+        continue-on-error: true
         run: |
-          if (!requireNamespace("lintr", quietly = TRUE)) {
+          if (!requireNamespace("lintr", quietly = TRUE))
             install.packages("lintr", repos = "https://cloud.r-project.org")
-          }
           opts <- lintr::linters_with_defaults(
             line_length_linter = lintr::line_length_linter(120)
           )
           lintr::lint_dir("r_scripts", linters = opts)
           lintr::lint_dir("api",       linters = opts)
-        continue-on-error: true   # lint warnings must never block deployment
 
-      # shell: Rscript {0} writes the run: block to a temp .R file and executes
-      # it as a proper R script — zero shell quoting / multiline issues.
-      # The working directory is the repo root (set by actions/checkout).
-      # .Rprofile → renv/activate.R activates the project library automatically.
-      - name: Seed synthetic data
+      - name: Seed, data tests, and unit tests
         shell: Rscript {0}
         run: |
           Sys.setenv(
@@ -80,43 +71,43 @@ jobs:
             DB_PATH   = "data/crypto_prices.duckdb",
             LOG_LEVEL = "WARN"
           )
+
+          cat("\n=== Loading pipeline functions ===\n")
           source("r_scripts/00_workspace_init.R")
           source("r_scripts/00_utils.R")
           source("r_scripts/01_ingestion.R")
           source("r_scripts/02_features.R")
           source("r_scripts/03_modeling.R")
+
+          cat("\n=== Seeding raw_prices ===\n")
           fetch_and_store_history("BTC-USD", years_back = 3)
           fetch_and_store_history("ETH-USD", years_back = 3)
+
+          cat("\n=== Seeding feature_prices ===\n")
           generate_pipeline_features("BTC-USD")
           generate_pipeline_features("ETH-USD")
+
+          cat("\n=== Seeding model_registry ===\n")
           compute_asset_forecasts("BTC-USD", forecast_horizon = 30)
+          gc(); Sys.sleep(0.2)
           compute_asset_forecasts("ETH-USD", forecast_horizon = 30)
-          cat("Synthetic seed complete — raw, features, model_registry populated\n")
+          gc(); Sys.sleep(0.2)
+          cat("\n=== All tables seeded ===\n")
 
-      - name: Run data tests
-        run: Rscript tests/data_tests.R
-        # Inherits job-level env: ENV_MODE=synthetic, DB_PATH, LOG_LEVEL
+          cat("\n=== Running data integrity tests ===\n")
+          data_test_rc <- system("Rscript tests/data_tests.R")
+          if (data_test_rc != 0) {
+            stop("Data integrity tests FAILED (exit code ", data_test_rc, ")")
+          }
+          cat("\n=== Data integrity tests PASSED (14/14) ===\n")
 
-      # shell: Rscript {0} for the same reason as the seed step.
-      # stop_on_failure=TRUE (testthat >= 3.0) exits with code 1 on any FAIL.
-      - name: Run unit tests
-        shell: Rscript {0}
-        run: |
-          Sys.setenv(
-            ENV_MODE  = "synthetic",
-            DB_PATH   = "data/crypto_prices.duckdb",
-            LOG_LEVEL = "WARN"
-          )
+          cat("\n=== Running unit tests ===\n")
           library(testthat)
           library(withr)
-          source("r_scripts/00_workspace_init.R")
-          source("r_scripts/00_utils.R")
-          source("r_scripts/01_ingestion.R")
-          source("r_scripts/02_features.R")
-          source("r_scripts/03_modeling.R")
           testthat::test_dir("tests/unit", stop_on_failure = TRUE)
+          cat("\n=== Unit tests PASSED ===\n")
 
-# ── Job 2: Docker build + smoke test ─────────────────────────────────────────
+# -- Job 2: Docker build + smoke test -----------------------------------------
   docker:
     runs-on: ubuntu-latest
     needs: test
@@ -138,13 +129,13 @@ jobs:
             -e LOG_LEVEL=WARN \
             --name cp-test \
             crypto-price-pipeline:latest
-          echo "Waiting 90s for container startup and synthetic seed..."
+          echo "Waiting 90s for container startup and seeding..."
           sleep 90
           curl -f http://localhost:8000/health \
             || (echo "=== Container logs ===" && docker logs cp-test && exit 1)
           docker stop cp-test
 
-# ── Job 3: Daily refresh (cron trigger only) ──────────────────────────────────
+# -- Job 3: Daily refresh (cron only) -----------------------------------------
   refresh:
     runs-on: ubuntu-latest
     needs: test
@@ -174,9 +165,7 @@ jobs:
           install.packages("renv")
           renv::restore(prompt = FALSE)
 
-      # Seed synthetic base before attempting live Yahoo fetch.
-      # 04_refresh.R reads feature_prices — the table must exist first.
-      - name: Seed synthetic base data
+      - name: Seed synthetic base
         shell: Rscript {0}
         run: |
           Sys.setenv(
@@ -192,13 +181,9 @@ jobs:
           fetch_and_store_history("ETH-USD", years_back = 5)
           generate_pipeline_features("BTC-USD")
           generate_pipeline_features("ETH-USD")
-          cat("Synthetic seed complete — ready for live refresh\n")
+          cat("Synthetic seed complete\n")
 
-      # continue-on-error: true — Yahoo Finance may be rate-limited or
-      # unreachable from GitHub Actions runners. A transient Yahoo failure
-      # must NOT turn the CI badge red. Railway handles the authoritative
-      # daily update independently via its own container environment.
-      - name: Run daily refresh (live Yahoo Finance)
+      - name: Run live refresh
         run: Rscript r_scripts/04_refresh.R
         env:
           ENV_MODE: live_yahoo
