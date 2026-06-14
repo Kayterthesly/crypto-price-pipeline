@@ -139,9 +139,11 @@ inspect_feature_prices <- function(target_symbol) {
   con <- get_db_connection()
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == !!target_symbol) |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con, sprintf(
+    "SELECT * FROM feature_prices WHERE symbol = '%s' ORDER BY date",
+    target_symbol
+  ))
+  df$date <- as.Date(df$date)
   
   if (nrow(df) == 0) {
     message("No feature data for '", target_symbol, "'")
