@@ -356,13 +356,7 @@ Rscript tests/data_tests.R
 - LICENSE (MIT) + CONTRIBUTING.md added
 - Commit: `bba2eca` (7D) · `c8f31a6` (dbplyr fix) · `723aa0c` (rsconnect gitignore)
 
----
 
-### Stage 8 — README Showcase & Architecture Diagram
-**Date:** 2026-06-11 | **Status:** ✅ Complete
-- Full README rewrite: badges, Mermaid architecture diagram, model performance table, tech stack
-- Detailed pipeline log preserved with all technical specifics (dates, commits, row counts, RMSE)
-- Stage 8 notes released
 
 ---
 
