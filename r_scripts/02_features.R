@@ -184,10 +184,11 @@ check_leakage <- function(target_symbol) {
   con <- get_db_connection()
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == !!target_symbol) |>
-    dplyr::arrange(date) |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con, sprintf(
+    "SELECT * FROM feature_prices WHERE symbol = '%s' ORDER BY date",
+    target_symbol
+  ))
+  df$date <- as.Date(df$date)
   
   cat("\n=== Leakage Check ===\n")
   cat("Symbol:", target_symbol, "\n\n")

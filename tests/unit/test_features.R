@@ -42,9 +42,9 @@ test_that("feature table has required columns", {
   con <- get_db_connection()
   on.exit({ DBI::dbDisconnect(con, shutdown = TRUE); gc() })
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == "TEST-CRYPTO") |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con,
+    "SELECT * FROM feature_prices WHERE symbol = 'TEST-CRYPTO'")
+  df$date <- as.Date(df$date)
   
   required <- c("symbol","date","adjusted","log_return",
                 "sma_50","sma_200","vol_30","rsi_14",
@@ -58,9 +58,9 @@ test_that("log_return has exactly 1 NA", {
   con <- get_db_connection()
   on.exit({ DBI::dbDisconnect(con, shutdown = TRUE); gc() })
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == "TEST-CRYPTO") |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con,
+    "SELECT * FROM feature_prices WHERE symbol = 'TEST-CRYPTO'")
+  df$date <- as.Date(df$date)
   
   expect_equal(sum(is.na(df$log_return)), 1L)
 })
@@ -69,9 +69,9 @@ test_that("sma_50 has fewer NAs than sma_200", {
   con <- get_db_connection()
   on.exit({ DBI::dbDisconnect(con, shutdown = TRUE); gc() })
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == "TEST-CRYPTO") |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con,
+    "SELECT * FROM feature_prices WHERE symbol = 'TEST-CRYPTO'")
+  df$date <- as.Date(df$date)
   
   expect_lt(sum(is.na(df$sma_50)), sum(is.na(df$sma_200)))
 })
@@ -80,10 +80,10 @@ test_that("drawdown is always <= 0", {
   con <- get_db_connection()
   on.exit({ DBI::dbDisconnect(con, shutdown = TRUE); gc() })
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == "TEST-CRYPTO") |>
-    dplyr::collect() |>
-    dplyr::filter(!is.na(drawdown))
+  df <- DBI::dbGetQuery(con,
+    "SELECT * FROM feature_prices WHERE symbol = 'TEST-CRYPTO'")
+  df$date <- as.Date(df$date)
+  df <- dplyr::filter(df, !is.na(drawdown))
   
   expect_true(all(df$drawdown <= 0),
               info = "Drawdown must always be <= 0")
@@ -93,10 +93,9 @@ test_that("leakage check passes for TEST-CRYPTO", {
   con <- get_db_connection()
   on.exit({ DBI::dbDisconnect(con, shutdown = TRUE); gc() })
   
-  df <- tbl(con, "feature_prices") |>
-    dplyr::filter(symbol == "TEST-CRYPTO") |>
-    dplyr::arrange(date) |>
-    dplyr::collect()
+  df <- DBI::dbGetQuery(con,
+    "SELECT * FROM feature_prices WHERE symbol = 'TEST-CRYPTO' ORDER BY date")
+  df$date <- as.Date(df$date)
   
   sma50_recomputed <- TTR::SMA(df$adjusted, n = 50)
   sma50_expected   <- dplyr::lag(sma50_recomputed, 1)
